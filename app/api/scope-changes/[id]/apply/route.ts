@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import ScopeChange, { ScopeChangeStatus, ScopeChangeAction } from '@/models/ScopeChange';
 import Contract, { ContractStatus } from '@/models/Contract';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
 
   try {
     await connectDB();
     const { id } = await params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
     }
 
@@ -29,10 +33,10 @@ export async function POST(
     }
 
     // Obtener escalamiento
-    const scopeChange = await ScopeChange.findById(id).session(session);
+    const scopeChange = await ScopeChange.findById(id).session(dbSession);
 
     if (!scopeChange) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'Escalamiento no encontrado' },
         { status: 404 }
@@ -41,7 +45,7 @@ export async function POST(
 
     // Validar estado
     if (scopeChange.status !== ScopeChangeStatus.APPROVED) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'Solo se pueden aplicar escalamientos aprobados' },
         { status: 400 }
@@ -49,16 +53,16 @@ export async function POST(
     }
 
     // Obtener contrato
-    const contract = await Contract.findById(scopeChange.contractId).session(session);
+    const contract = await Contract.findById(scopeChange.contractId).session(dbSession);
 
     if (!contract) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 });
     }
 
     // Validar que el contrato sigue activo
     if (contract.status !== ContractStatus.ACTIVE) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'El contrato debe estar activo para aplicar escalamientos' },
         { status: 400 }
@@ -122,7 +126,7 @@ export async function POST(
 
     // Validar que queden items
     if (newItems.length === 0) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'No se puede aplicar escalamiento que deje el contrato sin items' },
         { status: 400 }
@@ -142,7 +146,7 @@ export async function POST(
         items: newItems,
         monthlyPrice: newMonthlyPrice,
       },
-      { session, new: true }
+      { session: dbSession, new: true }
     );
 
     // Actualizar escalamiento
@@ -153,11 +157,23 @@ export async function POST(
         appliedDate: new Date(),
         appliedBy: appliedBy || undefined,
       },
-      { session, new: true }
+      { session: dbSession, new: true }
     );
 
     // Commit transacción
-    await session.commitTransaction();
+    await dbSession.commitTransaction();
+
+    const authSession = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: authSession?.user?.id,
+      action: AuditAction.APPLY,
+      resourceType: 'scope_change',
+      resourceId: scopeChange._id,
+      description: `Escalamiento aplicado al contrato: ${id}`,
+      ipAddress,
+      userAgent,
+    });
 
     // Obtener datos actualizados
     const updatedContract = await Contract.findById(contract._id)
@@ -174,7 +190,7 @@ export async function POST(
       scopeChange: updatedScopeChange,
     });
   } catch (error: any) {
-    await session.abortTransaction();
+    await dbSession.abortTransaction();
     console.error('Error applying scope change:', error);
     console.error('Error stack:', error.stack);
     return NextResponse.json(
@@ -185,6 +201,6 @@ export async function POST(
       { status: 500 }
     );
   } finally {
-    session.endSession();
+    dbSession.endSession();
   }
 }

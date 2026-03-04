@@ -1,10 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,12 +28,11 @@ export default function ForgotPasswordPage() {
       }
 
       setSuccess(true);
-      // En desarrollo, mostrar el link
       if (data.resetUrl) {
         setResetUrl(data.resetUrl);
       }
-    } catch (err: any) {
-      setError(err.message || 'Error al procesar solicitud');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al procesar solicitud');
     } finally {
       setLoading(false);
     }

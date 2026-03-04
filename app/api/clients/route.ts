@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Client, { ClientType, ClientStatus } from '@/models/Client';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,6 +75,18 @@ export async function POST(request: NextRequest) {
       phone,
       clientType,
       status: status || ClientStatus.ACTIVE,
+    });
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.CREATE,
+      resourceType: 'client',
+      resourceId: client._id,
+      description: `Cliente creado: ${client.name}`,
+      ipAddress,
+      userAgent,
     });
 
     return NextResponse.json(client, { status: 201 });

@@ -15,7 +15,7 @@ async function seed() {
     await connectDB();
 
     // Crear usuario admin por defecto
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@agencia.com';
+    const adminEmail = process.env.ADMIN_EMAIL || 'tomassanchez2101@gmail.com';
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
     const existingAdmin = await AdminUser.findOne({ email: adminEmail });

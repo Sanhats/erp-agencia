@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Contract, { ContractStatus } from '@/models/Contract';
 import Client, { ClientType } from '@/models/Client';
 import Service from '@/models/Service';
 import PackageTemplate from '@/models/PackageTemplate';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET(request: NextRequest) {
   try {
@@ -122,6 +126,18 @@ export async function POST(request: NextRequest) {
     const populated = await Contract.findById(contract._id)
       .populate('clientId', 'name email')
       .populate('packageTemplateId', 'name');
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.CREATE,
+      resourceType: 'contract',
+      resourceId: contract._id,
+      description: `Contrato creado para cliente ${clientId}`,
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json(populated, { status: 201 });
   } catch (error: any) {

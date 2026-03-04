@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import ScopeChange, { ScopeChangeStatus, ScopeChangeAction } from '@/models/ScopeChange';
 import Contract, { ContractStatus } from '@/models/Contract';
 import Service from '@/models/Service';
 import Client from '@/models/Client';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET(request: NextRequest) {
   try {
@@ -201,6 +205,18 @@ export async function POST(request: NextRequest) {
       .populate('contractId', 'name monthlyPrice')
       .populate('clientId', 'name email')
       .populate('requestedBy', 'name email');
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.CREATE,
+      resourceType: 'scope_change',
+      resourceId: scopeChange._id,
+      description: `Escalamiento creado: ${description}`,
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json(populated, { status: 201 });
   } catch (error: any) {

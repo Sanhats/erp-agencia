@@ -7,6 +7,7 @@ import { logAction, AuditAction } from '@/lib/audit';
 import { getRequestInfo } from '@/lib/audit';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
 import logger from '@/lib/logger';
+import { sendPasswordResetEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,20 +84,18 @@ export async function POST(request: NextRequest) {
       userAgent,
     });
 
-    // En producción, aquí se enviaría un email con el token
-    // Por ahora, en desarrollo, retornamos el token (solo para desarrollo)
-    const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/admin/reset-password?token=${token}`;
+    const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+
+    await sendPasswordResetEmail(user.email, resetUrl);
 
     if (process.env.NODE_ENV === 'development') {
       return NextResponse.json({
         message: 'Token generado (solo en desarrollo)',
-        resetUrl, // Solo en desarrollo
-        token, // Solo en desarrollo
+        resetUrl,
+        token,
       });
     }
 
-    // En producción, enviar email y no retornar el token
-    // TODO: Implementar envío de email
     return NextResponse.json({
       message: 'Si el email existe, se enviará un enlace de recuperación',
     });

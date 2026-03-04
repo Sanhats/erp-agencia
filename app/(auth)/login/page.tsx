@@ -213,7 +213,7 @@ export default function LoginPage() {
             {/* Forgot Password Link */}
             <div className="flex items-center justify-end">
               <a
-                href="/admin/forgot-password"
+                href="/forgot-password"
                 className="text-sm text-indigo-600 hover:text-indigo-800"
               >
                 ¿Olvidaste tu contraseña?

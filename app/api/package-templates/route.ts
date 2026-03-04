@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import PackageTemplate from '@/models/PackageTemplate';
 import Service from '@/models/Service';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET() {
   try {
@@ -65,6 +69,18 @@ export async function POST(request: NextRequest) {
       'items.serviceId',
       'name description basePrice'
     );
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.CREATE,
+      resourceType: 'package_template',
+      resourceId: template._id,
+      description: `Plantilla de paquete creada: ${template.name}`,
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json(populated, { status: 201 });
   } catch (error: any) {

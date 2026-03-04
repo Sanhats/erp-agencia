@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import PackageTemplate from '@/models/PackageTemplate';
 import Service from '@/models/Service';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET(
   request: NextRequest,
@@ -96,6 +100,18 @@ export async function PUT(
       );
     }
 
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.UPDATE,
+      resourceType: 'package_template',
+      resourceId: template._id,
+      description: `Plantilla de paquete actualizada: ${template.name}`,
+      ipAddress,
+      userAgent,
+    });
+
     return NextResponse.json(template);
   } catch (error: any) {
     console.error('Error updating package template:', error);
@@ -131,6 +147,18 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.DELETE,
+      resourceType: 'package_template',
+      resourceId: template._id,
+      description: `Plantilla de paquete desactivada: ${template.name}`,
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json({ message: 'Plantilla desactivada correctamente' });
   } catch (error) {

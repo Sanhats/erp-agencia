@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Payment, { PaymentMethod } from '@/models/Payment';
 import Invoice, { InvoiceStatus } from '@/models/Invoice';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET(request: NextRequest) {
   try {
@@ -147,6 +151,19 @@ export async function POST(request: NextRequest) {
 
     // Commit transacción
     await session.commitTransaction();
+
+    const authSession = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: authSession?.user?.id,
+      action: AuditAction.PAYMENT,
+      resourceType: 'payment',
+      resourceId: payment[0]._id,
+      description: `Pago registrado: $${amount} - Factura ${invoiceId}`,
+      metadata: { invoiceId, amount, paymentMethod },
+      ipAddress,
+      userAgent,
+    });
 
     // Obtener factura actualizada con populate
     const updatedInvoice = await Invoice.findById(invoiceId)

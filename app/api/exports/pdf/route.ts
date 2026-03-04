@@ -7,6 +7,8 @@ import Contract from '@/models/Contract';
 import mongoose from 'mongoose';
 import puppeteer from 'puppeteer';
 import { uploadPDF } from '@/lib/cloudinary';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function POST(request: NextRequest) {
   try {
@@ -113,6 +115,17 @@ export async function POST(request: NextRequest) {
           pdfPublicId: uploadedPublicId,
         });
       }
+
+      const { ipAddress, userAgent } = getRequestInfo(request);
+      await logAction({
+        userId: session.user.id,
+        action: AuditAction.EXPORT,
+        resourceType: type,
+        resourceId: id,
+        description: `PDF exportado: ${type} ${id}`,
+        ipAddress,
+        userAgent,
+      });
 
       return NextResponse.json({
         url,

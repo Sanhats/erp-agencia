@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Invoice, { InvoiceStatus } from '@/models/Invoice';
 import ScopeChange, { ScopeChangeStatus, ScopeChangeAction } from '@/models/ScopeChange';
 import Settings from '@/models/Settings';
 import Client from '@/models/Client';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function POST(request: NextRequest) {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
 
   try {
     await connectDB();
@@ -17,7 +21,7 @@ export async function POST(request: NextRequest) {
     const { scopeChangeIds, issueDate, dueDate, notes } = body;
 
     if (!scopeChangeIds || !Array.isArray(scopeChangeIds) || scopeChangeIds.length === 0) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'Debe proporcionar al menos un escalamiento para facturar' },
         { status: 400 }
@@ -27,7 +31,7 @@ export async function POST(request: NextRequest) {
     // Validar que todos los IDs sean válidos
     for (const id of scopeChangeIds) {
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        await session.abortTransaction();
+        await dbSession.abortTransaction();
         return NextResponse.json(
           { error: `ID de escalamiento inválido: ${id}` },
           { status: 400 }
@@ -43,10 +47,10 @@ export async function POST(request: NextRequest) {
     })
       .populate('clientId')
       .populate('contractId')
-      .session(session);
+      .session(dbSession);
 
     if (scopeChanges.length === 0) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'No se encontraron escalamientos aplicados sin facturar con los IDs proporcionados' },
         { status: 404 }
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (scopeChanges.length !== scopeChangeIds.length) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       const foundIds = scopeChanges.map(sc => sc._id.toString());
       const missingIds = scopeChangeIds.filter(id => !foundIds.includes(id.toString()));
       return NextResponse.json(
@@ -73,7 +77,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (!allSameClient) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'Todos los escalamientos deben pertenecer al mismo cliente' },
         { status: 400 }
@@ -105,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (invoiceItems.length === 0) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'No hay items válidos para facturar en los escalamientos seleccionados' },
         { status: 400 }
@@ -123,11 +127,11 @@ export async function POST(request: NextRequest) {
     const settings = await Settings.findOneAndUpdate(
       {},
       { $inc: { nextSequence: 1 } },
-      { new: true, upsert: true, session }
+      { new: true, upsert: true, session: dbSession }
     );
 
     if (!settings) {
-      await session.abortTransaction();
+      await dbSession.abortTransaction();
       return NextResponse.json(
         { error: 'No se pudo obtener el siguiente número de factura' },
         { status: 500 }
@@ -173,7 +177,7 @@ export async function POST(request: NextRequest) {
           notes: notes || undefined,
         },
       ],
-      { session }
+      { session: dbSession }
     );
 
     // Marcar todos los escalamientos como facturados
@@ -185,11 +189,24 @@ export async function POST(request: NextRequest) {
           invoiceId: invoice[0]._id,
         },
       },
-      { session }
+      { session: dbSession }
     );
 
     // Commit transacción
-    await session.commitTransaction();
+    await dbSession.commitTransaction();
+
+    const authSession = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: authSession?.user?.id,
+      action: AuditAction.CREATE,
+      resourceType: 'invoice',
+      resourceId: invoice[0]._id,
+      description: `Factura de extras creada: ${invoiceNumber} (escalamientos: ${scopeChangeIds.length})`,
+      metadata: { scopeChangeIds },
+      ipAddress,
+      userAgent,
+    });
 
     // Obtener factura con populate
     const populatedInvoice = await Invoice.findById(invoice[0]._id)
@@ -199,13 +216,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(populatedInvoice, { status: 201 });
   } catch (error: any) {
-    await session.abortTransaction();
+    await dbSession.abortTransaction();
     console.error('Error creating scope extra invoice:', error);
     return NextResponse.json(
       { error: error.message || 'Error al crear factura de extras' },
       { status: 500 }
     );
   } finally {
-    session.endSession();
+    dbSession.endSession();
   }
 }

@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Invoice, { InvoiceStatus } from '@/models/Invoice';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
+
+function isCronAuthorized(request: NextRequest): boolean {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return false;
+  const authHeader = request.headers.get('authorization');
+  const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const headerSecret = request.headers.get('x-cron-secret');
+  return bearer === cronSecret || headerSecret === cronSecret;
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const authSession = await getServerSession(authOptions);
+    const cronOk = isCronAuthorized(request);
+    if (!authSession?.user?.id && !cronOk) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
     await connectDB();
 
     // Fecha de hoy (inicio del día)
@@ -25,6 +44,17 @@ export async function POST(request: NextRequest) {
         },
       }
     );
+
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: authSession?.user?.id,
+      action: AuditAction.OTHER,
+      resourceType: 'billing',
+      description: `Facturas vencidas actualizadas: ${result.modifiedCount} marcadas como overdue`,
+      metadata: { modifiedCount: result.modifiedCount, matchedCount: result.matchedCount },
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json(
       {

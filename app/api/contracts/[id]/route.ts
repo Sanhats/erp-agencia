@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Contract, { ContractStatus } from '@/models/Contract';
 import Service from '@/models/Service';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET(
   request: NextRequest,
@@ -118,6 +122,18 @@ export async function PUT(
       .populate('clientId', 'name email')
       .populate('packageTemplateId', 'name');
 
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.UPDATE,
+      resourceType: 'contract',
+      resourceId: updatedContract?._id,
+      description: `Contrato actualizado: ${id}`,
+      ipAddress,
+      userAgent,
+    });
+
     return NextResponse.json(updatedContract);
   } catch (error: any) {
     console.error('Error updating contract:', error);
@@ -153,6 +169,18 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.DELETE,
+      resourceType: 'contract',
+      resourceId: contract._id,
+      description: `Contrato cancelado: ${id}`,
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json({ message: 'Contrato cancelado correctamente' });
   } catch (error) {

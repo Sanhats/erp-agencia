@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import ScopeChange, { ScopeChangeStatus } from '@/models/ScopeChange';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function POST(
   request: NextRequest,
@@ -49,6 +53,18 @@ export async function POST(
       .populate('contractId', 'name monthlyPrice')
       .populate('clientId', 'name email')
       .populate('rejectedBy', 'name email');
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.REJECT,
+      resourceType: 'scope_change',
+      resourceId: updated?._id,
+      description: `Escalamiento rechazado: ${id}`,
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json(updated);
   } catch (error: any) {

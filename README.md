@@ -26,8 +26,16 @@ Editar `.env.local` con tus valores:
 MONGODB_URI=mongodb://localhost:27017/erp-agencia
 NEXTAUTH_SECRET=tu-secret-key-aqui
 NEXTAUTH_URL=http://localhost:3000
+APP_BASE_URL=http://localhost:3000
 ADMIN_EMAIL=admin@agencia.com
 ADMIN_PASSWORD=admin123
+
+# Recuperación de contraseña (Resend)
+RESEND_API_KEY=re_xxxx
+RESEND_FROM=ERP Agencia <onboarding@resend.dev>
+
+# Cron job para marcar facturas vencidas (opcional)
+CRON_SECRET=tu-secret-para-cron
 ```
 
 3. Ejecutar seed para crear usuario admin:
@@ -74,6 +82,8 @@ Ver `plan.md` para el roadmap completo de desarrollo.
 
 ## 🔐 Seguridad
 
-- Las rutas `/admin/*` están protegidas por middleware
+- Las rutas `/admin/*` están protegidas por sesión en el layout
+- Las rutas `/api/*` (excepto `/api/auth/*`, `/api/seed`, `/api/billing/overdue`) exigen JWT válido vía middleware
+- El endpoint `/api/billing/overdue` acepta sesión de usuario o header `Authorization: Bearer <CRON_SECRET>` / `X-Cron-Secret` para ejecución por cron
 - NextAuth maneja la autenticación con JWT
 - Passwords hasheados con bcryptjs

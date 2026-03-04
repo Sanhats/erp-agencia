@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Invoice, { InvoiceStatus } from '@/models/Invoice';
 import Contract, { ContractStatus } from '@/models/Contract';
 import Settings from '@/models/Settings';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function POST(request: NextRequest) {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
 
   try {
     await connectDB();
@@ -22,7 +26,7 @@ export async function POST(request: NextRequest) {
       status: ContractStatus.ACTIVE,
     })
       .populate('clientId')
-      .session(session);
+      .session(dbSession);
 
     const results = {
       created: [] as any[],
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
           contractId: contract._id,
           billingYear,
           billingMonth,
-        }).session(session);
+        }).session(dbSession);
 
         if (existingInvoice) {
           results.skipped.push({
@@ -71,7 +75,7 @@ export async function POST(request: NextRequest) {
         const settings = await Settings.findOneAndUpdate(
           {},
           { $inc: { nextSequence: 1 } },
-          { new: true, session, upsert: true }
+          { new: true, session: dbSession, upsert: true }
         );
 
         // Generar número de factura
@@ -109,7 +113,7 @@ export async function POST(request: NextRequest) {
               })),
             },
           ],
-          { session }
+          { session: dbSession }
         );
 
         results.created.push({
@@ -129,7 +133,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Commit transacción
-    await session.commitTransaction();
+    await dbSession.commitTransaction();
+
+    const authSession = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: authSession?.user?.id,
+      action: AuditAction.OTHER,
+      resourceType: 'billing',
+      description: `Ciclo de facturación ejecutado: ${billingYear}-${String(billingMonth).padStart(2, '0')} - ${results.created.length} facturas creadas`,
+      metadata: { billingYear, billingMonth, created: results.created.length, skipped: results.skipped.length },
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json(
       {
@@ -149,7 +165,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: any) {
-    await session.abortTransaction();
+    await dbSession.abortTransaction();
     console.error('Error in billing cycle:', error);
     return NextResponse.json(
       {
@@ -158,6 +174,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    session.endSession();
+    dbSession.endSession();
   }
 }

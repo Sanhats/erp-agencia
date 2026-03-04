@@ -301,15 +301,15 @@ Priorizar integridad de datos sobre velocidad de desarrollo.
 
 # 📌 ESTADO ACTUAL
 
-[ ] Sprint 1
-[ ] Sprint 2
-[ ] Sprint 3
-[ ] Sprint 4
-[ ] Sprint 5
-[ ] Sprint 6
-[ ] Sprint 7
-[ ] Sprint 8
-[ ] Sprint 9
+[x] Sprint 1
+[x] Sprint 2
+[x] Sprint 3
+[x] Sprint 4
+[x] Sprint 5
+[x] Sprint 6
+[x] Sprint 7
+[x] Sprint 8
+[x] Sprint 9
 
 ---
 

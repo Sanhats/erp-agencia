@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Service from '@/models/Service';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET() {
   try {
@@ -35,6 +39,18 @@ export async function POST(request: NextRequest) {
       description,
       category,
       basePrice: Number(basePrice),
+    });
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.CREATE,
+      resourceType: 'service',
+      resourceId: service._id,
+      description: `Servicio creado: ${service.name}`,
+      ipAddress,
+      userAgent,
     });
 
     return NextResponse.json(service, { status: 201 });

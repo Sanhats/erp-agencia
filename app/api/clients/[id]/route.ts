@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import connectDB from '@/lib/mongoose';
 import Client, { ClientType, ClientStatus } from '@/models/Client';
 import Contract from '@/models/Contract';
 import mongoose from 'mongoose';
+import { logAction, getRequestInfo } from '@/lib/audit';
+import { AuditAction } from '@/models/AuditLog';
 
 export async function GET(
   request: NextRequest,
@@ -86,6 +90,18 @@ export async function PUT(
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
     }
 
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.UPDATE,
+      resourceType: 'client',
+      resourceId: client._id,
+      description: `Cliente actualizado: ${client.name}`,
+      ipAddress,
+      userAgent,
+    });
+
     return NextResponse.json(client);
   } catch (error: any) {
     console.error('Error updating client:', error);
@@ -118,6 +134,18 @@ export async function DELETE(
     if (!client) {
       return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
     }
+
+    const session = await getServerSession(authOptions);
+    const { ipAddress, userAgent } = getRequestInfo(request);
+    await logAction({
+      userId: session?.user?.id,
+      action: AuditAction.DELETE,
+      resourceType: 'client',
+      resourceId: client._id,
+      description: `Cliente desactivado: ${client.name}`,
+      ipAddress,
+      userAgent,
+    });
 
     return NextResponse.json({ message: 'Cliente desactivado correctamente' });
   } catch (error) {
