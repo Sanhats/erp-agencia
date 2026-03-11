@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongoose';
 import Invoice, { InvoiceStatus } from '@/models/Invoice';
 import Client from '@/models/Client';
+import Contract from '@/models/Contract';
 import mongoose from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    // Asegurar que los modelos estén registrados
-    if (!mongoose.models.Client) {
-      await import('@/models/Client');
-    }
+    // Asegurar que los modelos usados en populate estén registrados (Client, Contract)
+    if (!mongoose.models.Client) await import('@/models/Client');
+    if (!mongoose.models.Contract) await import('@/models/Contract');
 
     const searchParams = request.nextUrl.searchParams;
     const clientId = searchParams.get('clientId');
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       query.dueDate = { $lt: today };
-      query.status = { $in: [InvoiceStatus.PENDING, InvoiceStatus.DRAFT] };
+      query.status = { $in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE, InvoiceStatus.DRAFT] };
     }
 
     const invoices = await Invoice.find(query)

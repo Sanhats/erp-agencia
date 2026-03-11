@@ -1,18 +1,36 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token');
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  const eyeButtonClass =
+    'absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none select-none touch-none';
+  const showHandlers = (setShow: (value: boolean) => void) => ({
+    onMouseDown: () => setShow(true),
+    onMouseUp: () => setShow(false),
+    onMouseLeave: () => setShow(false),
+    onTouchStart: () => setShow(true),
+    onTouchEnd: () => setShow(false),
+  });
+  const EyeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
 
   useEffect(() => {
     if (!token) {
@@ -107,15 +125,26 @@ export default function ResetPasswordPage() {
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Nueva Contraseña
             </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              required
-              minLength={6}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 pr-9 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                className={eyeButtonClass}
+                title="Mantener presionado para ver"
+                tabIndex={-1}
+                {...showHandlers(setShowPassword)}
+              >
+                <EyeIcon />
+              </button>
+            </div>
           </div>
 
           <div>
@@ -125,15 +154,26 @@ export default function ResetPasswordPage() {
             >
               Confirmar Contraseña
             </label>
-            <input
-              type="password"
-              id="confirmPassword"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              required
-              minLength={6}
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                id="confirmPassword"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 py-2 pr-9 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                className={eyeButtonClass}
+                title="Mantener presionado para ver"
+                tabIndex={-1}
+                {...showHandlers(setShowConfirmPassword)}
+              >
+                <EyeIcon />
+              </button>
+            </div>
           </div>
 
           {error && (
@@ -158,5 +198,21 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="max-w-md w-full bg-white rounded-lg shadow p-8 text-center text-gray-600">
+            Cargando...
+          </div>
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

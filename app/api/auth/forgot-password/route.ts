@@ -45,14 +45,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar usuario
-    const user = await AdminUser.findOne({ email: email.toLowerCase().trim() });
+    const emailNormalized = email.toLowerCase().trim();
+    const user = await AdminUser.findOne({ email: emailNormalized });
 
     // Por seguridad, siempre retornar éxito aunque el usuario no exista
     // para evitar enumeración de emails
     if (!user) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[forgot-password] El email "${emailNormalized}" no está registrado. El correo solo se envía si el email existe en AdminUser (ej. el de ADMIN_EMAIL usado en el seed).`);
+      }
       return NextResponse.json({
         message: 'Si el email existe, se enviará un enlace de recuperación',
       });
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[forgot-password] Usuario encontrado (${user.email}), generando token y enviando email...`);
     }
 
     // Generar token
@@ -86,18 +94,29 @@ export async function POST(request: NextRequest) {
 
     const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
 
-    await sendPasswordResetEmail(user.email, resetUrl);
+    const emailSent = await sendPasswordResetEmail(user.email, resetUrl);
+
+    if (!emailSent) {
+      logger.warn('No se pudo enviar el email de recuperación', {
+        to: user.email,
+        hint: 'Revisa RESEND_API_KEY, RESEND_FROM (entre comillas en .env.local) y resend.com/logs',
+      });
+    }
 
     if (process.env.NODE_ENV === 'development') {
       return NextResponse.json({
-        message: 'Token generado (solo en desarrollo)',
+        message: emailSent
+          ? 'Token generado y email enviado (solo en desarrollo)'
+          : 'Token generado pero no se pudo enviar el email. Revisa la consola del servidor y RESEND_FROM en .env.local',
         resetUrl,
         token,
+        emailSent,
       });
     }
 
     return NextResponse.json({
       message: 'Si el email existe, se enviará un enlace de recuperación',
+      emailSent,
     });
   } catch (error: any) {
     logger.error('Error in forgot password', error, { endpoint: '/api/auth/forgot-password' });

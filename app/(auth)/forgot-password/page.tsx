@@ -8,6 +8,7 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [resetUrl, setResetUrl] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState<boolean | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,9 +29,8 @@ export default function ForgotPasswordPage() {
       }
 
       setSuccess(true);
-      if (data.resetUrl) {
-        setResetUrl(data.resetUrl);
-      }
+      if (data.resetUrl) setResetUrl(data.resetUrl);
+      setEmailSent(data.emailSent ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al procesar solicitud');
     } finally {
@@ -47,17 +47,9 @@ export default function ForgotPasswordPage() {
             Si el email existe en nuestro sistema, recibirás un enlace para restablecer tu
             contraseña.
           </p>
-          {resetUrl && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-sm text-blue-800 mb-2">
-                <strong>Desarrollo:</strong> Enlace de reset:
-              </p>
-              <a
-                href={resetUrl}
-                className="text-sm text-blue-600 hover:text-blue-800 break-all"
-              >
-                {resetUrl}
-              </a>
+          {emailSent === false && (
+            <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <strong>No se pudo enviar el correo.</strong> Revisa la terminal del servidor para ver el error. En <code className="bg-amber-100 px-1">.env.local</code> usa comillas: <code className="bg-amber-100 px-1">RESEND_FROM=&quot;ERP Agencia &lt;onboarding@resend.dev&gt;&quot;</code>
             </div>
           )}
           <div className="mt-4 text-center">

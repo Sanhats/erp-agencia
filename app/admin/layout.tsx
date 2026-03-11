@@ -3,6 +3,8 @@ import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import SidebarWrapper from '@/components/admin/SidebarWrapper';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminLayout({
   children,
 }: {

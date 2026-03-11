@@ -2,8 +2,9 @@ import { Resend } from 'resend';
 import logger from '@/lib/logger';
 
 const resendApiKey = process.env.RESEND_API_KEY;
+const rawFrom = process.env.RESEND_FROM || '';
 const resendFrom =
-  process.env.RESEND_FROM || 'ERP Agencia <onboarding@resend.dev>';
+  rawFrom.includes('@') ? rawFrom.trim() : 'ERP Agencia <onboarding@resend.dev>';
 
 /**
  * Envía un email con el enlace para restablecer la contraseña.
@@ -15,12 +16,15 @@ export async function sendPasswordResetEmail(
 ): Promise<boolean> {
   if (!resendApiKey) {
     logger.warn('RESEND_API_KEY no configurada; no se envía email de recuperación');
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[Resend] ⚠️ RESEND_API_KEY no está definida en .env.local');
+    }
     return false;
   }
 
   try {
     const resend = new Resend(resendApiKey);
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: resendFrom,
       to: [to],
       subject: 'Restablecer contraseña - ERP Agencia',
@@ -35,12 +39,20 @@ export async function sendPasswordResetEmail(
     if (error) {
       logger.error('Error al enviar email de recuperación', new Error(error.message), {
         to,
+        from: resendFrom,
         resendError: error,
       });
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[Resend] ❌ Error:', error.message, error);
+      }
       return false;
     }
 
-    logger.info('Email de recuperación enviado', { to });
+    const emailId = (data as { id?: string })?.id;
+    logger.info('Email de recuperación enviado', { to, resendId: emailId });
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Resend] ✅ Email enviado a ${to} | Asunto: "Restablecer contraseña - ERP Agencia" | ID en Resend: ${emailId ?? 'N/A'}`);
+    }
     return true;
   } catch (err) {
     logger.error(

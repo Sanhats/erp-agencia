@@ -58,10 +58,9 @@ export default function InvoiceCard({ invoice, onRegisterPayment }: InvoiceCardP
         throw new Error(data.error || 'Error al generar PDF');
       }
 
-      // Abrir PDF en nueva pestaña
+      // Abrir PDF a través de nuestra app (evita 401 de Cloudinary en el navegador)
       if (data.url) {
-        window.open(data.url, '_blank');
-        // Recargar después de un breve delay para actualizar el estado
+        window.open(`/api/exports/pdf/view?type=invoice&id=${invoice._id}`, '_blank');
         setTimeout(() => {
           window.location.reload();
         }, 1000);
@@ -190,7 +189,7 @@ export default function InvoiceCard({ invoice, onRegisterPayment }: InvoiceCardP
         )}
         {invoice.pdfUrl ? (
           <a
-            href={invoice.pdfUrl}
+            href={`/api/exports/pdf/view?type=invoice&id=${invoice._id}`}
             target="_blank"
             rel="noopener noreferrer"
             className="block w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-medium text-center"

@@ -1,4 +1,6 @@
-import { v2 as cloudinary } from 'cloudinary';
+import cloudinaryPackage from 'cloudinary';
+const cloudinary = cloudinaryPackage.v2 ?? cloudinaryPackage;
+const cloudinaryWithUrl = cloudinaryPackage;
 
 // Configurar Cloudinary
 cloudinary.config({
@@ -84,6 +86,21 @@ export async function deletePDF(publicId: string): Promise<boolean> {
   } catch (error: any) {
     throw new Error(`Error al eliminar PDF de Cloudinary: ${error.message}`);
   }
+}
+
+/**
+ * Genera una URL firmada para acceder a un PDF cuando el recurso es privado (evita 401).
+ */
+export function getSignedPdfUrl(publicId: string): string {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error('Cloudinary no está configurado correctamente.');
+  }
+  const url = (cloudinaryWithUrl as any).url(publicId, {
+    sign_url: true,
+    resource_type: 'raw',
+    type: 'upload',
+  });
+  return url;
 }
 
 export default cloudinary;

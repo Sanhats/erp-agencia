@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { InvoiceStatus } from '@/types/invoice';
 import InvoiceCard from '@/components/billing/InvoiceCard';
 import PaymentModal from '@/components/billing/PaymentModal';
@@ -30,12 +31,13 @@ interface Invoice {
 }
 
 export default function BillingPage() {
+  const searchParams = useSearchParams();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [filters, setFilters] = useState({
-    status: '' as string,
-    overdue: false,
+    status: (searchParams.get('status') as string) || '',
+    overdue: searchParams.get('overdue') === 'true',
   });
 
   useEffect(() => {
@@ -73,8 +75,14 @@ export default function BillingPage() {
   const pendingInvoices = invoices.filter(
     (inv) => inv.status === InvoiceStatus.PENDING || inv.status === InvoiceStatus.DRAFT
   );
-  const overdueInvoices = pendingInvoices.filter(
-    (inv) => new Date(inv.dueDate) < new Date() && inv.totals.total - inv.totals.paidAmount > 0
+  // Incluir PENDING, OVERDUE y DRAFT para que coincida con el dashboard (facturas con fecha vencida y saldo pendiente)
+  const overdueInvoices = invoices.filter(
+    (inv) =>
+      (inv.status === InvoiceStatus.PENDING ||
+        inv.status === InvoiceStatus.OVERDUE ||
+        inv.status === InvoiceStatus.DRAFT) &&
+      new Date(inv.dueDate) < new Date() &&
+      inv.totals.total - inv.totals.paidAmount > 0
   );
   const paidInvoices = invoices.filter((inv) => inv.status === InvoiceStatus.PAID);
 

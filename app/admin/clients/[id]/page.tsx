@@ -77,9 +77,9 @@ export default function ClientDetailPage() {
         throw new Error(data.error || 'Error al generar PDF');
       }
 
-      // Abrir PDF en nueva pestaña
+      // Abrir PDF a través de nuestra app (evita 401 al abrir Cloudinary directamente)
       if (data.url) {
-        window.open(data.url, '_blank');
+        window.open(`/api/exports/pdf/view?type=contract&id=${contractId}`, '_blank');
       }
 
       // Recargar datos del cliente
@@ -213,7 +213,7 @@ export default function ClientDetailPage() {
             <div className="mt-4 pt-4 border-t border-gray-200">
               {activeContract.pdfUrl ? (
                 <a
-                  href={activeContract.pdfUrl}
+                  href={`/api/exports/pdf/view?type=contract&id=${activeContract._id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-medium text-center"

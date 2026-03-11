@@ -62,13 +62,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Obtener URL base de la aplicación
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const printUrl = `${baseUrl}/admin/print/${type}/${id}`;
+    // Rutas públicas /print/* con token para que Puppeteer no reciba la página de login
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_BASE_URL || 'http://localhost:3000';
+    const pdfToken = process.env.PDF_SECRET || process.env.CRON_SECRET;
+    if (!pdfToken) {
+      throw new Error('PDF_SECRET o CRON_SECRET requerido para generar PDFs');
+    }
+    const printUrl = `${baseUrl}/print/${type}/${id}?token=${encodeURIComponent(pdfToken)}`;
 
     // Iniciar Puppeteer
     const browser = await puppeteer.launch({
-      headless: true,
+      headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
